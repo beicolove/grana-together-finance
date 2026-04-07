@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, CalendarDays, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { MonthlyStatement } from "@/components/MonthlyStatement";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -82,6 +83,7 @@ export default function Dashboard() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
+  const [showStatement, setShowStatement] = useState(false);
 
   useEffect(() => {
     if (!activeProfile) return;
@@ -188,6 +190,16 @@ export default function Dashboard() {
       ];
 
   return (
+    <>
+      {showStatement && !isCouple && (
+        <MonthlyStatement
+          month={selectedMonth}
+          transactions={filteredTxns}
+          categories={categories}
+          profileId={activeProfile.id}
+          onClose={() => setShowStatement(false)}
+        />
+      )}
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
@@ -269,6 +281,15 @@ export default function Dashboard() {
                     {balance >= 0 ? "+" : ""}{fmt(balance)}
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-1"
+                  onClick={() => setShowStatement(true)}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Ver extrato completo
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -365,5 +386,6 @@ export default function Dashboard() {
         </>
       )}
     </div>
+    </>
   );
 }
