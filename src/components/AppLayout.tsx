@@ -1,16 +1,19 @@
 import { useEffect } from "react";
-import { LayoutDashboard, PlusCircle, BarChart3, Target, Settings } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BarChart3, Target, Settings, CreditCard, Landmark, LineChart } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { ProfileSelector } from "@/components/ProfileSelector";
 import { MobileNav } from "@/components/MobileNav";
 import { useProfile } from "@/contexts/ProfileContext";
 
 const navItems = [
-  { title: "Dashboard",     url: "/",              icon: LayoutDashboard },
-  { title: "Lançamentos",   url: "/lancamentos",   icon: PlusCircle },
-  { title: "Relatórios",    url: "/relatorios",    icon: BarChart3 },
-  { title: "Metas",         url: "/metas",         icon: Target },
-  { title: "Configurações", url: "/configuracoes", icon: Settings },
+  { title: "Dashboard",     url: "/",               icon: LayoutDashboard },
+  { title: "Lançamentos",   url: "/lancamentos",    icon: PlusCircle },
+  { title: "Parcelamentos", url: "/parcelamentos",  icon: CreditCard },
+  { title: "Investimentos", url: "/investimentos",  icon: Landmark },
+  { title: "Análises",      url: "/analises",       icon: LineChart },
+  { title: "Relatórios",    url: "/relatorios",     icon: BarChart3 },
+  { title: "Metas",         url: "/metas",          icon: Target },
+  { title: "Configurações", url: "/configuracoes",  icon: Settings },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +36,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav tabs — desktop only */}
-        <nav className="hidden md:flex gap-1 px-4 md:px-6 border-t border-border/50">
+        <nav className="hidden md:flex gap-1 px-4 md:px-6 border-t border-border/50 overflow-x-auto scrollbar-hide">
           {navItems.map((item) => (
             <NavLink
               key={item.title}

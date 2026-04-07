@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useProfile } from "@/contexts/ProfileContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,45 +15,22 @@ type InvestmentType = "renda_fixa" | "acoes" | "cripto" | "fundos" | "previdenci
 type Investment = {
   id: string;
   name: string;
-  investedAmount: number;
-  currentAmount: number;
-  startDate: string;
-  type: InvestmentType;
+  invested_amount: number;
+  current_amount: number;
+  start_date: string;
+  type: string;
+  profile_id: string;
 };
 
 const TYPES: Record<InvestmentType, string> = {
-  renda_fixa: "Renda Fixa",
-  acoes: "Ações",
-  cripto: "Cripto",
-  fundos: "Fundos",
-  previdencia: "Previdência",
-  outros: "Outros",
+  renda_fixa: "Renda Fixa", acoes: "Ações", cripto: "Cripto",
+  fundos: "Fundos", previdencia: "Previdência", outros: "Outros",
 };
 
 const TYPE_EMOJI: Record<InvestmentType, string> = {
-  renda_fixa: "🏦",
-  acoes: "📈",
-  cripto: "₿",
-  fundos: "📊",
-  previdencia: "🏛️",
-  outros: "💼",
+  renda_fixa: "🏦", acoes: "📈", cripto: "₿",
+  fundos: "📊", previdencia: "🏛️", outros: "💼",
 };
-
-function storageKey(profileId: string) {
-  return `investments_${profileId}`;
-}
-
-function loadInvestments(profileId: string): Investment[] {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey(profileId)) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveInvestments(profileId: string, data: Investment[]) {
-  localStorage.setItem(storageKey(profileId), JSON.stringify(data));
-}
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -60,22 +38,16 @@ const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 export default function Investments() {
   const { activeProfile } = useProfile();
   const [investments, setInvestments] = useState<Investment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Form
   const [name, setName] = useState("");
   const [investedAmount, setInvestedAmount] = useState("");
   const [currentAmount, setCurrentAmount] = useState("");
   const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [type, setType] = useState<InvestmentType>("renda_fixa");
-
-  useEffect(() => {
-    if (!activeProfile) return;
-    setInvestments(loadInvestments(activeProfile.id));
-  }, [activeProfile]);
-
-  if (!activeProfile) return null;
 
   const resetForm = () => {
     setName(""); setInvestedAmount(""); setCurrentAmount("");
@@ -83,33 +55,65 @@ export default function Investments() {
     setEditId(null);
   };
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (!activeProfile) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("investments")
+        .select("*")
+        .eq("profile_id", activeProfile.id)
+        .order("created_at", { ascending: false });
+      if (error) toast.error("Erro ao carregar investimentos.");
+      setInvestments(data || []);
+      setLoading(false);
+    };
+    load();
+  }, [activeProfile]);
+
+  if (!activeProfile) return null;
+
+  const handleSave = async () => {
     if (!name || !investedAmount || !currentAmount) {
       toast.error("Preencha todos os campos obrigatórios.");
       return;
     }
-    let updated: Investment[];
+    setSaving(true);
     if (editId) {
-      updated = investments.map((i) =>
-        i.id === editId
-          ? { ...i, name, investedAmount: parseFloat(investedAmount), currentAmount: parseFloat(currentAmount), startDate, type }
-          : i
-      );
+      const { data, error } = await supabase
+        .from("investments")
+        .update({
+          name,
+          invested_amount: parseFloat(investedAmount),
+          current_amount: parseFloat(currentAmount),
+          start_date: startDate,
+          type,
+        })
+        .eq("id", editId)
+        .select()
+        .single();
+      setSaving(false);
+      if (error) { toast.error("Erro ao atualizar."); return; }
+      setInvestments((prev) => prev.map((i) => (i.id === editId ? data : i)));
       toast.success("Investimento atualizado!");
     } else {
-      const item: Investment = {
-        id: crypto.randomUUID(),
-        name,
-        investedAmount: parseFloat(investedAmount),
-        currentAmount: parseFloat(currentAmount),
-        startDate,
-        type,
-      };
-      updated = [...investments, item];
+      const { data, error } = await supabase
+        .from("investments")
+        .insert({
+          profile_id: activeProfile.id,
+          name,
+          invested_amount: parseFloat(investedAmount),
+          current_amount: parseFloat(currentAmount),
+          start_date: startDate,
+          type,
+        })
+        .select()
+        .single();
+      setSaving(false);
+      if (error) { toast.error("Erro ao salvar."); return; }
+      setInvestments((prev) => [data, ...prev]);
       toast.success("Investimento adicionado!");
     }
-    saveInvestments(activeProfile.id, updated);
-    setInvestments(updated);
     setOpen(false);
     resetForm();
   };
@@ -117,29 +121,28 @@ export default function Investments() {
   const handleEdit = (item: Investment) => {
     setEditId(item.id);
     setName(item.name);
-    setInvestedAmount(String(item.investedAmount));
-    setCurrentAmount(String(item.currentAmount));
-    setStartDate(item.startDate);
-    setType(item.type);
+    setInvestedAmount(String(item.invested_amount));
+    setCurrentAmount(String(item.current_amount));
+    setStartDate(item.start_date);
+    setType(item.type as InvestmentType);
     setOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const updated = investments.filter((i) => i.id !== id);
-    saveInvestments(activeProfile.id, updated);
-    setInvestments(updated);
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("investments").delete().eq("id", id);
+    if (error) { toast.error("Erro ao remover."); return; }
+    setInvestments((prev) => prev.filter((i) => i.id !== id));
     toast.success("Removido.");
   };
 
-  const totalInvested = investments.reduce((s, i) => s + i.investedAmount, 0);
-  const totalCurrent = investments.reduce((s, i) => s + i.currentAmount, 0);
+  const totalInvested = investments.reduce((s, i) => s + i.invested_amount, 0);
+  const totalCurrent = investments.reduce((s, i) => s + i.current_amount, 0);
   const totalYieldR = totalCurrent - totalInvested;
   const totalYieldPct = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0;
 
-  // Group by type for overview
   const byType = Object.entries(
     investments.reduce<Record<string, number>>((acc, i) => {
-      acc[i.type] = (acc[i.type] || 0) + i.currentAmount;
+      acc[i.type] = (acc[i.type] || 0) + i.current_amount;
       return acc;
     }, {})
   ).sort((a, b) => b[1] - a[1]);
@@ -180,15 +183,15 @@ export default function Investments() {
                 <label className="text-xs text-muted-foreground">Data de início</label>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
               </div>
-              <Button onClick={handleSave} className="w-full" disabled={!name || !investedAmount || !currentAmount}>
-                Salvar
+              <Button onClick={handleSave} className="w-full" disabled={!name || !investedAmount || !currentAmount || saving}>
+                {saving ? "Salvando..." : "Salvar"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Summary card */}
+      {/* Summary */}
       <Card className="border-[0.5px] bg-muted/30">
         <CardContent className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visão geral</p>
@@ -226,7 +229,9 @@ export default function Investments() {
         </CardContent>
       </Card>
 
-      {investments.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">Carregando...</div>
+      ) : investments.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Landmark className="h-12 w-12 mx-auto mb-3 opacity-40" />
           <p>Nenhum investimento registrado.</p>
@@ -235,8 +240,10 @@ export default function Investments() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {investments.map((item) => {
-            const yieldR = item.currentAmount - item.investedAmount;
-            const yieldPct = item.investedAmount > 0 ? ((item.currentAmount - item.investedAmount) / item.investedAmount) * 100 : 0;
+            const yieldR = item.current_amount - item.invested_amount;
+            const yieldPct = item.invested_amount > 0
+              ? ((item.current_amount - item.invested_amount) / item.invested_amount) * 100
+              : 0;
             const positive = yieldR >= 0;
             return (
               <Card key={item.id} className="border-[0.5px]">
@@ -244,36 +251,30 @@ export default function Investments() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{TYPE_EMOJI[item.type]}</span>
+                        <span className="text-base">{TYPE_EMOJI[item.type as InvestmentType] ?? "💼"}</span>
                         <p className="font-semibold truncate">{item.name}</p>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {TYPES[item.type]} · desde {format(new Date(item.startDate + "T12:00:00"), "MM/yyyy")}
+                        {TYPES[item.type as InvestmentType] ?? item.type} · desde {format(new Date(item.start_date + "T12:00:00"), "MM/yyyy")}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => handleEdit(item)}>
                         Editar
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-rose-500"
-                        onClick={() => handleDelete(item.id)}
-                      >
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-rose-500" onClick={() => handleDelete(item.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded bg-muted/50 p-2">
                       <p className="text-xs text-muted-foreground">Investido</p>
-                      <p className="text-sm font-semibold">{fmt(item.investedAmount)}</p>
+                      <p className="text-sm font-semibold">{fmt(item.invested_amount)}</p>
                     </div>
                     <div className="rounded bg-muted/50 p-2">
                       <p className="text-xs text-muted-foreground">Atual</p>
-                      <p className="text-sm font-semibold">{fmt(item.currentAmount)}</p>
+                      <p className="text-sm font-semibold">{fmt(item.current_amount)}</p>
                     </div>
                     <div className={`rounded p-2 ${positive ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
                       <p className="text-xs text-muted-foreground">Rendimento</p>

@@ -19,17 +19,13 @@ type Transaction = {
 
 type Category = { id: string; name: string; emoji: string };
 type Goal = { name: string; current_amount: number; target_amount: number; deadline: string | null };
-type Installment = { installmentAmount: number; currentInstallment: number; totalInstallments: number };
-type Investment = { investedAmount: number; currentAmount: number; type: string };
+type Installment = { installment_amount: number; current_installment: number; total_installments: number };
+type Investment = { invested_amount: number; current_amount: number; type: string };
 type Trip = { id: string; name: string; start_date: string; end_date: string; status: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-function loadLS<T>(key: string): T[] {
-  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
-}
 
 function scoreColor(s: number) {
   if (s >= 75) return "text-emerald-500";
@@ -433,15 +429,14 @@ function IndividualAnalysis({
   categories,
   goals,
   investments,
-  activeProfileId,
+  installments,
 }: {
   transactions: Transaction[];
   categories: Category[];
   goals: Goal[];
   investments: Investment[];
-  activeProfileId: string;
+  installments: Installment[];
 }) {
-  const installments = loadLS<Installment>(`installments_${activeProfileId}`);
 
   const now = new Date();
   const curStart = format(startOfMonth(now), "yyyy-MM-dd");
@@ -459,11 +454,11 @@ function IndividualAnalysis({
   const prevExpenses = prevTxns.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
   void prevIncome;
 
-  const activeInstallments = installments.filter((i) => i.currentInstallment <= i.totalInstallments);
-  const monthlyInstallmentBurden = activeInstallments.reduce((s, i) => s + i.installmentAmount, 0);
+  const activeInstallments = installments.filter((i) => i.current_installment <= i.total_installments);
+  const monthlyInstallmentBurden = activeInstallments.reduce((s, i) => s + i.installment_amount, 0);
 
-  const totalInvested = investments.reduce((s, i) => s + i.investedAmount, 0);
-  const totalCurrent = investments.reduce((s, i) => s + i.currentAmount, 0);
+  const totalInvested = investments.reduce((s, i) => s + i.invested_amount, 0);
+  const totalCurrent = investments.reduce((s, i) => s + i.current_amount, 0);
   const investYield = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0;
 
   let score = 50;
@@ -676,23 +671,26 @@ export default function Analysis() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [installments, setInstallments] = useState<Installment[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!activeProfile) return;
     const load = async () => {
-      const { data: txns } = await supabase
-        .from("transactions")
-        .select("amount,type,date,category_id,trip_id")
-        .eq("profile_id", activeProfile.id);
-      const { data: cats } = await supabase
-        .from("categories").select("id,name,emoji").eq("profile_id", activeProfile.id);
-      const { data: gs } = await supabase
-        .from("goals").select("name,current_amount,target_amount,deadline").eq("profile_id", activeProfile.id);
+      const [txnsRes, catsRes, gsRes, instRes, invRes] = await Promise.all([
+        supabase.from("transactions").select("amount,type,date,category_id,trip_id").eq("profile_id", activeProfile.id),
+        supabase.from("categories").select("id,name,emoji").eq("profile_id", activeProfile.id),
+        supabase.from("goals").select("name,current_amount,target_amount,deadline").eq("profile_id", activeProfile.id),
+        supabase.from("installments").select("installment_amount,current_installment,total_installments").eq("profile_id", activeProfile.id),
+        supabase.from("investments").select("invested_amount,current_amount,type").eq("profile_id", activeProfile.id),
+      ]);
 
-      setTransactions(txns || []);
-      setCategories(cats || []);
-      setGoals(gs || []);
+      setTransactions(txnsRes.data || []);
+      setCategories(catsRes.data || []);
+      setGoals(gsRes.data || []);
+      setInstallments(instRes.data || []);
+      setInvestments(invRes.data || []);
 
       if (isCasal) {
         const { data: tripsData } = await supabase
@@ -712,8 +710,6 @@ export default function Analysis() {
       </div>
     );
   }
-
-  const investments = loadLS<Investment>(`investments_${activeProfile.id}`);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -738,7 +734,7 @@ export default function Analysis() {
           categories={categories}
           goals={goals}
           investments={investments}
-          activeProfileId={activeProfile.id}
+          installments={installments}
         />
       )}
     </div>

@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+
+# Environment variables — never commit secrets
+.env
+.env.*
+!.env.example

@@ -49,6 +49,94 @@ export type Database = {
           },
         ]
       }
+      installments: {
+        Row: {
+          category: string
+          created_at: string
+          current_installment: number
+          id: string
+          installment_amount: number
+          name: string
+          profile_id: string
+          start_date: string
+          total_amount: number
+          total_installments: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          current_installment?: number
+          id?: string
+          installment_amount: number
+          name: string
+          profile_id: string
+          start_date: string
+          total_amount?: number
+          total_installments: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          current_installment?: number
+          id?: string
+          installment_amount?: number
+          name?: string
+          profile_id?: string
+          start_date?: string
+          total_amount?: number
+          total_installments?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investments: {
+        Row: {
+          created_at: string
+          current_amount: number
+          id: string
+          invested_amount: number
+          name: string
+          profile_id: string
+          start_date: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          current_amount: number
+          id?: string
+          invested_amount: number
+          name: string
+          profile_id: string
+          start_date: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          current_amount?: number
+          id?: string
+          invested_amount?: number
+          name?: string
+          profile_id?: string
+          start_date?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           created_at: string
