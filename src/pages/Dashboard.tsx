@@ -4,13 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, CalendarDays, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import {
+  TrendingUp, TrendingDown, Wallet, PiggyBank,
+  CalendarDays, ChevronLeft, ChevronRight, FileText,
+} from "lucide-react";
 import { MonthlyStatement } from "@/components/MonthlyStatement";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { format, subMonths, addMonths, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import {
+  format, subMonths, addMonths, startOfMonth, endOfMonth,
+  differenceInDays, getDaysInMonth,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 type Transaction = {
@@ -40,35 +46,16 @@ type Category = {
 
 const CHART_COLORS = ["#E91E8C", "#8B5CF6", "#00E676", "#FF5252", "#378ADD", "#1D9E75", "#14B8A6", "#F97316"];
 
-function MonthSelector({
-  selected,
-  onChange,
-}: {
-  selected: Date;
-  onChange: (d: Date) => void;
-}) {
+function MonthSelector({ selected, onChange }: { selected: Date; onChange: (d: Date) => void }) {
   const label = format(selected, "MMMM yyyy", { locale: ptBR });
   const capitalized = label.charAt(0).toUpperCase() + label.slice(1);
-
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => onChange(subMonths(selected, 1))}
-        aria-label="Mês anterior"
-      >
+    <div className="flex items-center gap-1">
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onChange(subMonths(selected, 1))} aria-label="Mês anterior">
         <ChevronLeft className="h-4 w-4" />
       </Button>
       <span className="text-sm font-semibold min-w-[130px] text-center">{capitalized}</span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => onChange(addMonths(selected, 1))}
-        aria-label="Próximo mês"
-      >
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onChange(addMonths(selected, 1))} aria-label="Próximo mês">
         <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
@@ -78,11 +65,13 @@ function MonthSelector({
 export default function Dashboard() {
   const { activeProfile, isCasal } = useProfile();
   const isCouple = isCasal;
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
+  const [selectedCasalMonth, setSelectedCasalMonth] = useState<Date>(startOfMonth(new Date()));
   const [showStatement, setShowStatement] = useState(false);
 
   useEffect(() => {
@@ -114,34 +103,54 @@ export default function Dashboard() {
 
   const now = new Date();
 
-  // --- Filtered transactions for the selected month (non-couple) ---
+  // Individual: month filter
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
+
+  // Casal: trip + month filter
+  const casalMonthStart = format(startOfMonth(selectedCasalMonth), "yyyy-MM-dd");
+  const casalMonthEnd = format(endOfMonth(selectedCasalMonth), "yyyy-MM-dd");
 
   const currentTrip = trips.find((t) => t.id === selectedTrip);
 
   const filteredTxns = isCouple
-    ? (currentTrip ? transactions.filter((t) => t.trip_id === selectedTrip) : [])
+    ? currentTrip
+      ? transactions.filter(
+          (t) =>
+            t.trip_id === selectedTrip &&
+            t.date >= casalMonthStart &&
+            t.date <= casalMonthEnd
+        )
+      : []
     : transactions.filter(
-        (t) => t.date >= format(monthStart, "yyyy-MM-dd") && t.date <= format(monthEnd, "yyyy-MM-dd")
+        (t) =>
+          t.date >= format(monthStart, "yyyy-MM-dd") &&
+          t.date <= format(monthEnd, "yyyy-MM-dd")
       );
 
   const income = filteredTxns.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
   const expenses = filteredTxns.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
   const balance = income - expenses;
-  const totalSaved = transactions.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0)
-    - transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+
+  const totalSaved =
+    transactions.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount), 0) -
+    transactions.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
 
   const tripDays = currentTrip
     ? differenceInDays(new Date(currentTrip.end_date), new Date(currentTrip.start_date)) + 1
     : 0;
+  void tripDays; // available for future use
 
-  // --- Bar chart: always last 6 months from today (historical, not filtered by selectedMonth) ---
+  const avgPerDay = getDaysInMonth(selectedCasalMonth) > 0
+    ? expenses / getDaysInMonth(selectedCasalMonth)
+    : 0;
+
+  // Bar chart
   const barData = isCouple && currentTrip
     ? (() => {
         const days: Record<string, { day: string; gastos: number }> = {};
         filteredTxns.forEach((t) => {
-          const day = format(new Date(t.date), "dd/MM");
+          const day = format(new Date(t.date + "T12:00:00"), "dd/MM");
           if (!days[day]) days[day] = { day, gastos: 0 };
           if (t.type === "expense") days[day].gastos += Number(t.amount);
         });
@@ -159,7 +168,7 @@ export default function Dashboard() {
         };
       });
 
-  // --- Pie chart: filtered by selected month (or trip for couple) ---
+  // Pie chart
   const expByCategory: Record<string, number> = {};
   filteredTxns
     .filter((t) => t.type === "expense")
@@ -172,15 +181,17 @@ export default function Dashboard() {
 
   const recent = filteredTxns.slice(0, 5);
 
-  const fmt = (v: number) =>
-    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const casalMonthLabel = format(selectedCasalMonth, "MMMM yyyy", { locale: ptBR });
+  const casalMonthCapitalized = casalMonthLabel.charAt(0).toUpperCase() + casalMonthLabel.slice(1);
 
   const kpis = isCouple
     ? [
-        { label: "Receita do período", value: income, icon: TrendingUp, positive: true },
-        { label: "Gasto total", value: expenses, icon: TrendingDown, positive: false },
-        { label: "Saldo", value: balance, icon: Wallet, positive: balance >= 0 },
-        { label: "Dias de viagem", value: tripDays, icon: CalendarDays, positive: true, raw: true },
+        { label: "Receita do mês", value: income, icon: TrendingUp, positive: true },
+        { label: "Gastos do mês", value: expenses, icon: TrendingDown, positive: false },
+        { label: "Saldo do mês", value: balance, icon: Wallet, positive: balance >= 0 },
+        { label: "Média por dia", value: avgPerDay, icon: CalendarDays, positive: true },
       ]
     : [
         { label: "Receita do mês", value: income, icon: TrendingUp, positive: true },
@@ -189,77 +200,95 @@ export default function Dashboard() {
         { label: "Total economizado", value: totalSaved, icon: PiggyBank, positive: totalSaved >= 0 },
       ];
 
+  const summaryLabel = isCouple
+    ? `${currentTrip?.name ?? "Viagem"} · ${casalMonthCapitalized}`
+    : format(selectedMonth, "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase());
+
+  const statementTitle = isCouple && currentTrip
+    ? `${currentTrip.name} — ${casalMonthCapitalized}`
+    : undefined;
+
+  const paidNamespace = isCouple && currentTrip
+    ? `${selectedTrip}_${selectedCasalMonth.getFullYear()}_${selectedCasalMonth.getMonth() + 1}`
+    : undefined;
+
   return (
     <>
-      {showStatement && !isCouple && (
+      {showStatement && (
         <MonthlyStatement
-          month={selectedMonth}
+          month={isCouple ? selectedCasalMonth : selectedMonth}
           transactions={filteredTxns}
           categories={categories}
           profileId={activeProfile.id}
+          title={statementTitle}
+          paidNamespace={paidNamespace}
           onClose={() => setShowStatement(false)}
         />
       )}
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          {isCouple && (
-            <p className="text-xs text-muted-foreground mt-0.5">Perfil Casal — períodos de viagem</p>
+
+      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold">Dashboard</h2>
+            {isCouple && (
+              <p className="text-xs text-muted-foreground mt-0.5">Perfil Casal — períodos de viagem</p>
+            )}
+          </div>
+
+          {isCouple ? (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <Select value={selectedTrip} onValueChange={setSelectedTrip}>
+                <SelectTrigger className="w-[190px]">
+                  <SelectValue placeholder="Selecionar viagem" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trips.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {currentTrip && (
+                <MonthSelector selected={selectedCasalMonth} onChange={setSelectedCasalMonth} />
+              )}
+            </div>
+          ) : (
+            <MonthSelector selected={selectedMonth} onChange={setSelectedMonth} />
           )}
         </div>
 
-        {isCouple ? (
-          <Select value={selectedTrip} onValueChange={setSelectedTrip}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Selecionar viagem" />
-            </SelectTrigger>
-            <SelectContent>
-              {trips.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <MonthSelector selected={selectedMonth} onChange={setSelectedMonth} />
-        )}
-      </div>
-
-      {isCouple && !currentTrip && (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
-          <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">Nenhuma viagem selecionada</p>
-          <p className="text-xs mt-1">Crie um período de viagem em Configurações para começar a registrar.</p>
-        </div>
-      )}
-
-      {(!isCouple || currentTrip) && (
-        <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            {kpis.map((kpi) => (
-              <Card key={kpi.label} className="border-[0.5px]">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <kpi.icon className="h-4 w-4" />
-                    <span className="text-xs font-medium">{kpi.label}</span>
-                  </div>
-                  <p className={`text-xl md:text-2xl font-bold ${
-                    kpi.raw ? "" : kpi.positive ? "text-positive" : "text-negative"
-                  }`}>
-                    {kpi.raw ? kpi.value : fmt(kpi.value)}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+        {isCouple && !currentTrip && (
+          <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
+            <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">Nenhuma viagem selecionada</p>
+            <p className="text-xs mt-1">Crie um período de viagem em Configurações para começar a registrar.</p>
           </div>
+        )}
 
-          {/* Monthly Summary */}
-          {!isCouple && (
+        {(!isCouple || currentTrip) && (
+          <>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {kpis.map((kpi) => (
+                <Card key={kpi.label} className="border-[0.5px]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <kpi.icon className="h-4 w-4" />
+                      <span className="text-xs font-medium">{kpi.label}</span>
+                    </div>
+                    <p className={`text-xl md:text-2xl font-bold ${kpi.positive ? "text-positive" : "text-negative"}`}>
+                      {fmt(kpi.value)}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Summary + Extrato */}
             <Card className="border-[0.5px] bg-muted/30">
               <CardContent className="p-4">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Resumo de {format(selectedMonth, "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase())}
+                  Resumo de {summaryLabel}
                 </p>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="rounded-lg bg-background border border-[0.5px] p-3">
@@ -275,8 +304,8 @@ export default function Dashboard() {
                     <p className="text-lg font-bold text-rose-500">{fmt(expenses)}</p>
                   </div>
                 </div>
-                <div className={`rounded-lg p-3 text-center ${balance >= 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
-                  <p className="text-xs text-muted-foreground mb-0.5">Saldo Final</p>
+                <div className={`rounded-lg p-3 text-center mb-3 ${balance >= 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
+                  <p className="text-xs text-muted-foreground mb-0.5">Saldo do Período</p>
                   <p className={`text-2xl font-extrabold ${balance >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
                     {balance >= 0 ? "+" : ""}{fmt(balance)}
                   </p>
@@ -284,7 +313,7 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full mt-1"
+                  className="w-full"
                   onClick={() => setShowStatement(true)}
                 >
                   <FileText className="h-4 w-4 mr-2" />
@@ -292,100 +321,99 @@ export default function Dashboard() {
                 </Button>
               </CardContent>
             </Card>
-          )}
 
-          {/* Charts */}
-          <div className="grid md:grid-cols-2 gap-4">
+            {/* Charts */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card className="border-[0.5px]">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {isCouple ? `Gastos por dia — ${casalMonthCapitalized}` : "Receita x Gastos (6 meses)"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={barData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                      <XAxis dataKey={isCouple ? "day" : "month"} fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                      <Tooltip formatter={(v: number) => fmt(v)} />
+                      {isCouple ? (
+                        <Bar dataKey="gastos" fill="#E91E8C" radius={[4, 4, 0, 0]} />
+                      ) : (
+                        <>
+                          <Bar dataKey="receita" fill="#00E676" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="gastos" fill="#FF5252" radius={[4, 4, 0, 0]} />
+                        </>
+                      )}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="border-[0.5px]">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Gastos por categoria</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => fmt(v)} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent transactions */}
             <Card className="border-[0.5px]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {isCouple ? "Gastos por dia" : "Receita x Gastos (6 meses)"}
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Últimos lançamentos</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={barData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey={isCouple ? "day" : "month"} fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                    {isCouple ? (
-                      <Bar dataKey="gastos" fill="#E91E8C" radius={[4, 4, 0, 0]} />
-                    ) : (
-                      <>
-                        <Bar dataKey="receita" fill="#00E676" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="gastos" fill="#FF5252" radius={[4, 4, 0, 0]} />
-                      </>
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card className="border-[0.5px]">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Gastos por categoria</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent transactions */}
-          <Card className="border-[0.5px]">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Últimos lançamentos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recent.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">Nenhum lançamento encontrado.</p>
-              ) : (
-                <div className="space-y-3">
-                  {recent.map((t) => {
-                    const cat = categories.find((c) => c.id === t.category_id);
-                    return (
-                      <div key={t.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg">{cat?.emoji || "📋"}</span>
-                          <div>
-                            <p className="text-sm font-medium">{t.description || cat?.name || "Sem descrição"}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(t.date), "dd/MM/yyyy")}
-                            </p>
+                {recent.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Nenhum lançamento encontrado.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {recent.map((t) => {
+                      const cat = categories.find((c) => c.id === t.category_id);
+                      return (
+                        <div key={t.id} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{cat?.emoji || "📋"}</span>
+                            <div>
+                              <p className="text-sm font-medium">{t.description || cat?.name || "Sem descrição"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(t.date + "T12:00:00"), "dd/MM/yyyy")}
+                              </p>
+                            </div>
                           </div>
+                          <span className={`text-sm font-semibold ${t.type === "income" ? "text-positive" : "text-negative"}`}>
+                            {t.type === "income" ? "+" : "-"}{fmt(Number(t.amount))}
+                          </span>
                         </div>
-                        <span className={`text-sm font-semibold ${t.type === "income" ? "text-positive" : "text-negative"}`}>
-                          {t.type === "income" ? "+" : "-"}{fmt(Number(t.amount))}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
     </>
   );
 }

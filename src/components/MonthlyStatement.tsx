@@ -25,36 +25,50 @@ type Props = {
   transactions: Transaction[];
   categories: Category[];
   profileId: string;
+  /** Custom header title. If omitted, defaults to "Extrato — <mês>" */
+  title?: string;
+  /** Custom localStorage namespace for paid state. Defaults to "<year>_<month>". */
+  paidNamespace?: string;
   onClose: () => void;
 };
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-function paidKey(profileId: string, year: number, month: number) {
-  return `grana_paid_${profileId}_${year}_${month}`;
+function buildKey(profileId: string, namespace: string) {
+  return `grana_paid_${profileId}_${namespace}`;
 }
 
-function loadPaid(profileId: string, year: number, month: number): Set<string> {
+function loadPaid(profileId: string, namespace: string): Set<string> {
   try {
-    const arr = JSON.parse(localStorage.getItem(paidKey(profileId, year, month)) || "[]");
+    const arr = JSON.parse(localStorage.getItem(buildKey(profileId, namespace)) || "[]");
     return new Set(arr);
   } catch {
     return new Set();
   }
 }
 
-function savePaid(profileId: string, year: number, month: number, paid: Set<string>) {
-  localStorage.setItem(paidKey(profileId, year, month), JSON.stringify([...paid]));
+function savePaid(profileId: string, namespace: string, paid: Set<string>) {
+  localStorage.setItem(buildKey(profileId, namespace), JSON.stringify([...paid]));
 }
 
-export function MonthlyStatement({ month, transactions, categories, profileId, onClose }: Props) {
+export function MonthlyStatement({
+  month,
+  transactions,
+  categories,
+  profileId,
+  title,
+  paidNamespace,
+  onClose,
+}: Props) {
   const year = month.getFullYear();
   const monthNum = month.getMonth() + 1;
+  const namespace = paidNamespace ?? `${year}_${monthNum}`;
 
-  const [paid, setPaid] = useState<Set<string>>(() => loadPaid(profileId, year, monthNum));
+  const [paid, setPaid] = useState<Set<string>>(() => loadPaid(profileId, namespace));
 
   const monthLabel = format(month, "MMMM yyyy", { locale: ptBR });
-  const capitalized = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+  const monthCapitalized = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+  const headerTitle = title ? `Extrato — ${title}` : `Extrato — ${monthCapitalized}`;
 
   const income = transactions.filter((t) => t.type === "income");
   const expenses = transactions.filter((t) => t.type === "expense");
@@ -68,7 +82,7 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      savePaid(profileId, year, monthNum, next);
+      savePaid(profileId, namespace, next);
       return next;
     });
   };
@@ -82,11 +96,11 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
         <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="font-bold text-lg truncate">Extrato — {capitalized}</h2>
+        <h2 className="font-bold text-lg truncate">{headerTitle}</h2>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-6 pb-24">
-        {/* Summary cards */}
+        {/* Summary */}
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-[0.5px] bg-emerald-500/10 p-4">
@@ -102,15 +116,9 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
               <p className="text-xl font-bold text-rose-500">{fmt(totalExpenses)}</p>
             </div>
           </div>
-          <div
-            className={`rounded-xl p-4 text-center ${
-              balance >= 0
-                ? "bg-emerald-500/10 border border-emerald-500/20"
-                : "bg-rose-500/10 border border-rose-500/20"
-            }`}
-          >
+          <div className={`rounded-xl p-4 text-center ${balance >= 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
             <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mb-1">
-              <Wallet className="h-3 w-3" /> Saldo do mês
+              <Wallet className="h-3 w-3" /> Saldo do período
             </p>
             <p className={`text-2xl font-extrabold ${balance >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
               {balance >= 0 ? "+" : ""}{fmt(balance)}
@@ -118,7 +126,7 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
           </div>
         </div>
 
-        {/* Income section */}
+        {/* Income */}
         {income.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -132,16 +140,10 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
                   <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-background">
                     <span className="text-xl shrink-0">{cat?.emoji || "💰"}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {t.description || cat?.name || "Receita"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(t.date + "T12:00:00"), "dd/MM/yyyy")}
-                      </p>
+                      <p className="text-sm font-medium truncate">{t.description || cat?.name || "Receita"}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(t.date + "T12:00:00"), "dd/MM/yyyy")}</p>
                     </div>
-                    <span className="text-sm font-semibold text-emerald-500 shrink-0">
-                      +{fmt(Number(t.amount))}
-                    </span>
+                    <span className="text-sm font-semibold text-emerald-500 shrink-0">+{fmt(Number(t.amount))}</span>
                   </div>
                 );
               })}
@@ -149,7 +151,7 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
           </div>
         )}
 
-        {/* Expenses section */}
+        {/* Expenses */}
         {expenses.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -170,30 +172,19 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
                       className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors"
                       aria-label={isPaid ? "Marcar como não pago" : "Marcar como pago"}
                     >
-                      {isPaid ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                      ) : (
-                        <Circle className="h-5 w-5" />
-                      )}
+                      {isPaid
+                        ? <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                        : <Circle className="h-5 w-5" />
+                      }
                     </button>
                     <span className="text-xl shrink-0">{cat?.emoji || "📋"}</span>
                     <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          isPaid ? "line-through text-muted-foreground" : ""
-                        }`}
-                      >
+                      <p className={`text-sm font-medium truncate ${isPaid ? "line-through text-muted-foreground" : ""}`}>
                         {t.description || cat?.name || "Despesa"}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(t.date + "T12:00:00"), "dd/MM/yyyy")}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(t.date + "T12:00:00"), "dd/MM/yyyy")}</p>
                     </div>
-                    <span
-                      className={`text-sm font-semibold shrink-0 ${
-                        isPaid ? "text-muted-foreground line-through" : "text-rose-500"
-                      }`}
-                    >
+                    <span className={`text-sm font-semibold shrink-0 ${isPaid ? "text-muted-foreground line-through" : "text-rose-500"}`}>
                       -{fmt(Number(t.amount))}
                     </span>
                   </div>
@@ -205,7 +196,7 @@ export function MonthlyStatement({ month, transactions, categories, profileId, o
 
         {income.length === 0 && expenses.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
-            <p>Nenhuma transação encontrada neste mês.</p>
+            <p>Nenhuma transação encontrada neste período.</p>
           </div>
         )}
       </div>
