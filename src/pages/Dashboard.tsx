@@ -3,12 +3,13 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, CalendarDays } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { format, subMonths, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 type Transaction = {
@@ -38,6 +39,41 @@ type Category = {
 
 const CHART_COLORS = ["#E91E8C", "#8B5CF6", "#00E676", "#FF5252", "#378ADD", "#1D9E75", "#14B8A6", "#F97316"];
 
+function MonthSelector({
+  selected,
+  onChange,
+}: {
+  selected: Date;
+  onChange: (d: Date) => void;
+}) {
+  const label = format(selected, "MMMM yyyy", { locale: ptBR });
+  const capitalized = label.charAt(0).toUpperCase() + label.slice(1);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => onChange(subMonths(selected, 1))}
+        aria-label="Mês anterior"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="text-sm font-semibold min-w-[130px] text-center">{capitalized}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => onChange(addMonths(selected, 1))}
+        aria-label="Próximo mês"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { activeProfile, isCasal } = useProfile();
   const isCouple = isCasal;
@@ -45,6 +81,7 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
 
   useEffect(() => {
     if (!activeProfile) return;
@@ -74,12 +111,13 @@ export default function Dashboard() {
   if (!activeProfile) return null;
 
   const now = new Date();
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
 
-  // Filter transactions based on profile type
-  // Casal: sempre por viagem — nunca por mês calendário (perfil independente)
+  // --- Filtered transactions for the selected month (non-couple) ---
+  const monthStart = startOfMonth(selectedMonth);
+  const monthEnd = endOfMonth(selectedMonth);
+
   const currentTrip = trips.find((t) => t.id === selectedTrip);
+
   const filteredTxns = isCouple
     ? (currentTrip ? transactions.filter((t) => t.trip_id === selectedTrip) : [])
     : transactions.filter(
@@ -96,7 +134,7 @@ export default function Dashboard() {
     ? differenceInDays(new Date(currentTrip.end_date), new Date(currentTrip.start_date)) + 1
     : 0;
 
-  // Bar chart data - last 6 months or daily for trip
+  // --- Bar chart: always last 6 months from today (historical, not filtered by selectedMonth) ---
   const barData = isCouple && currentTrip
     ? (() => {
         const days: Record<string, { day: string; gastos: number }> = {};
@@ -119,7 +157,7 @@ export default function Dashboard() {
         };
       });
 
-  // Pie chart data
+  // --- Pie chart: filtered by selected month (or trip for couple) ---
   const expByCategory: Record<string, number> = {};
   filteredTxns
     .filter((t) => t.type === "expense")
@@ -145,7 +183,7 @@ export default function Dashboard() {
     : [
         { label: "Receita do mês", value: income, icon: TrendingUp, positive: true },
         { label: "Gastos do mês", value: expenses, icon: TrendingDown, positive: false },
-        { label: "Saldo atual", value: balance, icon: Wallet, positive: balance >= 0 },
+        { label: "Saldo do mês", value: balance, icon: Wallet, positive: balance >= 0 },
         { label: "Total economizado", value: totalSaved, icon: PiggyBank, positive: totalSaved >= 0 },
       ];
 
@@ -158,7 +196,8 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground mt-0.5">Perfil Casal — períodos de viagem</p>
           )}
         </div>
-        {isCouple && (
+
+        {isCouple ? (
           <Select value={selectedTrip} onValueChange={setSelectedTrip}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Selecionar viagem" />
@@ -169,6 +208,8 @@ export default function Dashboard() {
               ))}
             </SelectContent>
           </Select>
+        ) : (
+          <MonthSelector selected={selectedMonth} onChange={setSelectedMonth} />
         )}
       </div>
 
@@ -201,12 +242,43 @@ export default function Dashboard() {
             ))}
           </div>
 
+          {/* Monthly Summary */}
+          {!isCouple && (
+            <Card className="border-[0.5px] bg-muted/30">
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Resumo de {format(selectedMonth, "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase())}
+                </p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="rounded-lg bg-background border border-[0.5px] p-3">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3 text-emerald-500" /> Total de Receitas
+                    </p>
+                    <p className="text-lg font-bold text-emerald-500">{fmt(income)}</p>
+                  </div>
+                  <div className="rounded-lg bg-background border border-[0.5px] p-3">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <TrendingDown className="h-3 w-3 text-rose-500" /> Total de Despesas
+                    </p>
+                    <p className="text-lg font-bold text-rose-500">{fmt(expenses)}</p>
+                  </div>
+                </div>
+                <div className={`rounded-lg p-3 text-center ${balance >= 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
+                  <p className="text-xs text-muted-foreground mb-0.5">Saldo Final</p>
+                  <p className={`text-2xl font-extrabold ${balance >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                    {balance >= 0 ? "+" : ""}{fmt(balance)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Charts */}
           <div className="grid md:grid-cols-2 gap-4">
             <Card className="border-[0.5px]">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">
-                  {isCouple ? "Gastos por dia" : "Receita x Gastos"}
+                  {isCouple ? "Gastos por dia" : "Receita x Gastos (6 meses)"}
                 </CardTitle>
               </CardHeader>
               <CardContent>

@@ -1,4 +1,4 @@
-import { LayoutDashboard, PlusCircle, BarChart3, Target, Settings } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BarChart3, Target, Settings, CreditCard, Landmark, LineChart } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { ProfileSelector } from "./ProfileSelector";
 import {
@@ -17,6 +17,9 @@ import {
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Lançamentos", url: "/lancamentos", icon: PlusCircle },
+  { title: "Parcelamentos", url: "/parcelamentos", icon: CreditCard },
+  { title: "Investimentos", url: "/investimentos", icon: Landmark },
+  { title: "Análises", url: "/analises", icon: LineChart },
   { title: "Relatórios", url: "/relatorios", icon: BarChart3 },
   { title: "Metas", url: "/metas", icon: Target },
   { title: "Configurações", url: "/configuracoes", icon: Settings },

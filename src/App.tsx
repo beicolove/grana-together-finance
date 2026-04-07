@@ -15,6 +15,9 @@ import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
 import Goals from "./pages/Goals";
 import Settings from "./pages/Settings";
+import Installments from "./pages/Installments";
+import Investments from "./pages/Investments";
+import Analysis from "./pages/Analysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +29,9 @@ function ProtectedRoutes() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/lancamentos" element={<Transactions />} />
+          <Route path="/parcelamentos" element={<Installments />} />
+          <Route path="/investimentos" element={<Investments />} />
+          <Route path="/analises" element={<Analysis />} />
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/metas" element={<Goals />} />
           <Route path="/configuracoes" element={<Settings />} />
