@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ─── Tema dark permanente ─── */
+  :root {
+    /* Background #0D0E1A */
+    --background: 235 34% 8%;
+    --foreground: 220 14% 96%;
+
+    /* Cards #13152A */
+    --card: 235 38% 12%;
+    --card-foreground: 220 14% 96%;
+
+    --popover: 235 38% 12%;
+    --popover-foreground: 220 14% 96%;
+
+    /* Primary: pink neon #E91E8C */
+    --primary: 328 82% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: roxo #8B5CF6 */
+    --secondary: 263 88% 66%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 235 28% 18%;
+    --muted-foreground: 235 14% 56%;
+
+    /* Accent: roxo */
+    --accent: 263 88% 66%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive: vermelho #FF5252 */
+    --destructive: 0 100% 66%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success: verde neon #00E676 */
+    --success: 151 100% 45%;
+    --success-foreground: 0 0% 10%;
+
+    /* Borders #2A2D4A */
+    --border: 235 28% 23%;
+    --input: 235 28% 23%;
+    --ring: 328 82% 52%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 235 38% 12%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 328 82% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 235 28% 18%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 235 28% 23%;
+    --sidebar-ring: 328 82% 52%;
+
+    /* Perfis */
+    --profile-lucas: 211 72% 60%;
+    --profile-gisele: 160 68% 45%;
+    --profile-casal: 328 82% 52%;
+
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Bloco .dark espelha :root — shadcn usa dark: utilities */
+  .dark {
+    --background: 235 34% 8%;
+    --foreground: 220 14% 96%;
+    --card: 235 38% 12%;
+    --card-foreground: 220 14% 96%;
+    --popover: 235 38% 12%;
+    --popover-foreground: 220 14% 96%;
+    --primary: 328 82% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 263 88% 66%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 235 28% 18%;
+    --muted-foreground: 235 14% 56%;
+    --accent: 263 88% 66%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 100% 66%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 151 100% 45%;
+    --success-foreground: 0 0% 10%;
+    --border: 235 28% 23%;
+    --input: 235 28% 23%;
+    --ring: 328 82% 52%;
+    --sidebar-background: 235 38% 12%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 328 82% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 235 28% 18%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 235 28% 23%;
+    --sidebar-ring: 328 82% 52%;
+    --profile-lucas: 211 72% 60%;
+    --profile-gisele: 160 68% 45%;
+    --profile-casal: 328 82% 52%;
+  }
+}
+
+/* ── Background por perfil ───────────────────────────────────────── */
+/* Lucas  (blue)  → azul escuro  #0A0F1E  ≈ hsl(225 51% 8%)          */
+/* Gisele (green) → roxo escuro  #0F0A1E  ≈ hsl(255 51% 8%)          */
+/* Casal  (amber) → verde escuro #0A1A0F  ≈ hsl(139 45% 7%)          */
+
+html[data-profile="blue"] {
+  --background: 225 51% 8%;
+}
+
+html[data-profile="green"] {
+  --background: 255 51% 8%;
+}
+
+html[data-profile="amber"] {
+  --background: 139 45% 7%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    transition: background-color 0.4s ease;
+  }
+}
+
+@layer utilities {
+  .text-positive {
+    color: #00E676;
+  }
+  .text-negative {
+    color: #FF5252;
+  }
+  .gradient-casal {
+    background: linear-gradient(135deg, #E91E8C, #C2185B);
+  }
+}
