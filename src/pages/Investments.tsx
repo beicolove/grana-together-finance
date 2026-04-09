@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, TrendingUp, TrendingDown, Trash2, Landmark } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
 
 type InvestmentType = "renda_fixa" | "acoes" | "cripto" | "fundos" | "previdencia" | "outros";
 
@@ -17,7 +16,6 @@ type Investment = {
   name: string;
   invested_amount: number;
   current_amount: number;
-  start_date: string;
   type: string;
   profile_id: string;
 };
@@ -46,13 +44,11 @@ export default function Investments() {
   const [name, setName] = useState("");
   const [investedAmount, setInvestedAmount] = useState("");
   const [currentAmount, setCurrentAmount] = useState("");
-  const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [type, setType] = useState<InvestmentType>("renda_fixa");
 
   const resetForm = () => {
     setName(""); setInvestedAmount(""); setCurrentAmount("");
-    setStartDate(format(new Date(), "yyyy-MM-dd")); setType("renda_fixa");
-    setEditId(null);
+    setType("renda_fixa"); setEditId(null);
   };
 
   useEffect(() => {
@@ -86,7 +82,6 @@ export default function Investments() {
           name,
           invested_amount: parseFloat(investedAmount),
           current_amount: parseFloat(currentAmount),
-          start_date: startDate,
           type,
         })
         .eq("id", editId)
@@ -104,7 +99,6 @@ export default function Investments() {
           name,
           invested_amount: parseFloat(investedAmount),
           current_amount: parseFloat(currentAmount),
-          start_date: startDate,
           type,
         })
         .select()
@@ -123,7 +117,6 @@ export default function Investments() {
     setName(item.name);
     setInvestedAmount(String(item.invested_amount));
     setCurrentAmount(String(item.current_amount));
-    setStartDate(item.start_date);
     setType(item.type as InvestmentType);
     setOpen(true);
   };
@@ -178,10 +171,6 @@ export default function Investments() {
                   <label className="text-xs text-muted-foreground">Valor atual (R$) *</label>
                   <Input type="number" placeholder="0,00" value={currentAmount} onChange={(e) => setCurrentAmount(e.target.value)} className="mt-1" />
                 </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Data de início</label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
               </div>
               <Button onClick={handleSave} className="w-full" disabled={!name || !investedAmount || !currentAmount || saving}>
                 {saving ? "Salvando..." : "Salvar"}
@@ -255,7 +244,7 @@ export default function Investments() {
                         <p className="font-semibold truncate">{item.name}</p>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {TYPES[item.type as InvestmentType] ?? item.type} · desde {format(new Date(item.start_date + "T12:00:00"), "MM/yyyy")}
+                        {TYPES[item.type as InvestmentType] ?? item.type}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

@@ -13,7 +13,7 @@ import { format } from "date-fns";
 
 type Installment = {
   id: string;
-  name: string;
+  description: string;
   total_amount: number;
   installment_amount: number;
   total_installments: number;
@@ -38,7 +38,7 @@ export default function Installments() {
   const [saving, setSaving] = useState(false);
 
   // Form state
-  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [installmentAmount, setInstallmentAmount] = useState("");
   const [totalInstallments, setTotalInstallments] = useState("");
@@ -47,7 +47,7 @@ export default function Installments() {
   const [category, setCategory] = useState("Outros");
 
   const resetForm = () => {
-    setName(""); setTotalAmount(""); setInstallmentAmount("");
+    setDescription(""); setTotalAmount(""); setInstallmentAmount("");
     setTotalInstallments(""); setCurrentInstallment("1");
     setStartDate(format(new Date(), "yyyy-MM-dd")); setCategory("Outros");
   };
@@ -71,7 +71,7 @@ export default function Installments() {
   if (!activeProfile) return null;
 
   const handleAdd = async () => {
-    if (!name || !installmentAmount || !totalInstallments) {
+    if (!description || !installmentAmount || !totalInstallments) {
       toast.error("Preencha os campos obrigatórios.");
       return;
     }
@@ -81,7 +81,7 @@ export default function Installments() {
       .from("installments")
       .insert({
         profile_id: activeProfile.id,
-        name,
+        description,
         total_amount: total,
         installment_amount: parseFloat(installmentAmount),
         total_installments: parseInt(totalInstallments),
@@ -135,7 +135,7 @@ export default function Installments() {
               <DialogTitle>Novo Parcelamento</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <Input placeholder="Nome (ex: iPhone 15)" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input placeholder="Nome (ex: iPhone 15)" value={description} onChange={(e) => setDescription(e.target.value)} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">Valor total (R$)</label>
@@ -166,7 +166,7 @@ export default function Installments() {
                   {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button onClick={handleAdd} className="w-full" disabled={!name || !installmentAmount || !totalInstallments || saving}>
+              <Button onClick={handleAdd} className="w-full" disabled={!description || !installmentAmount || !totalInstallments || saving}>
                 {saving ? "Salvando..." : "Salvar"}
               </Button>
             </div>
@@ -217,7 +217,7 @@ export default function Installments() {
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="font-semibold truncate">{item.name}</p>
+                            <p className="font-semibold truncate">{item.description}</p>
                             <p className="text-xs text-muted-foreground">
                               {item.category} · iniciado em {format(new Date(item.start_date + "T12:00:00"), "MM/yyyy")}
                             </p>
@@ -256,7 +256,7 @@ export default function Installments() {
                   <Card key={item.id} className="border-[0.5px] opacity-60">
                     <CardContent className="p-4 flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-semibold truncate">{item.name}</p>
+                        <p className="font-semibold truncate">{item.description}</p>
                         <p className="text-xs text-muted-foreground">{item.total_installments}x {fmt(item.installment_amount)} · {item.category}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
